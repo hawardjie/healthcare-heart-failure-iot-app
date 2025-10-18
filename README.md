@@ -16,12 +16,12 @@ A production-ready, **multi-tenant** IoT platform for CardioMEMS Heart Failure m
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────────────┐
 │                        LOCAL DEVELOPMENT                         │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌──────────────┐      MQTT Topics:                             │
-│  │  Simulator   │   tenants/{tenantId}/devices/{deviceId}/...   │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐      MQTT Topics:                              │
+│  │  Simulator   │   tenants/{tenantId}/devices/{deviceId}/...    │
 │  │ 500 Devices  │                                                │
 │  │  2 Tenants   │──────┐                                         │
 │  └──────────────┘      │                                         │
@@ -41,16 +41,16 @@ A production-ready, **multi-tenant** IoT platform for CardioMEMS Heart Failure m
 │              └─────────┬────────┘                                │
 │                        │                                         │
 │         ┌──────────────┴───────────────┐                         │
-│         ↓                               ↓                        │
-│  ┌──────────────┐             ┌────────────────┐                │
-│  │ TimescaleDB  │             │  ML Service    │                │
-│  │ (Hypertable) │             │  FastAPI       │                │
-│  │ - Telemetry  │             │  Anomaly Score │                │
-│  │ - Alerts     │             │  (ONNX Ready)  │                │
-│  │ - RLS Enabled│             └────────────────┘                │
+│         ↓                              ↓                         │
+│  ┌──────────────┐             ┌────────────────┐                 │
+│  │ TimescaleDB  │             │  ML Service    │                 │
+│  │ (Hypertable) │             │  FastAPI       │                 │
+│  │ - Telemetry  │             │  Anomaly Score │                 │
+│  │ - Alerts     │             │  (ONNX Ready)  │                 │
+│  │ - RLS Enabled│             └────────────────┘                 │
 │  └──────────────┘                                                │
-│                                                                   │
-└─────────────────────────────────────────────────────────────────┘
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
 
 PRODUCTION AWS (Infrastructure code provided, not deployed locally):
 - AWS IoT Core + Device Provisioning Service (DPS)
