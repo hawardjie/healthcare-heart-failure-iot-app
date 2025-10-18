@@ -75,7 +75,7 @@ PRODUCTION AWS (Infrastructure code provided, not deployed locally):
 
 ```bash
 # Clone/navigate to this repo
-cd awsIoTCoreProj
+cd healthcare-heart-failure-iot-app
 
 # Install dependencies and start all services
 make setup      # Install brew, python, node (one-time)
