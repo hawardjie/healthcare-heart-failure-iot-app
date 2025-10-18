@@ -1,0 +1,137 @@
+version: '3.9'
+
+services:
+  # MQTT Broker (EMQX - drop-in replacement for AWS IoT Core)
+  emqx:
+    image: emqx/emqx:5.3.2
+    container_name: hf-emqx
+    ports:
+      - "1883:1883"      # MQTT
+      - "8883:8883"      # MQTT/SSL
+      - "8083:8083"      # WS
+      - "8084:8084"      # WSS
+      - "18083:18083"    # Dashboard
+    environment:
+      - EMQX_NAME=emqx
+      - EMQX_HOST=node1.emqx.local
+      - EMQX_DASHBOARD__DEFAULT_USERNAME=admin
+      - EMQX_DASHBOARD__DEFAULT_PASSWORD=public
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD-SHELL", "emqx ping || exit 0"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 30s
+
+  # TimescaleDB for telemetry time-series storage
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: hf-timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-heart_failure_iot}
+      POSTGRES_USER: ${POSTGRES_USER:-iot_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local_dev_password}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./config/timescaledb/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot_admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # LocalStack (AWS services emulation)
+  localstack:
+    image: localstack/localstack:latest
+    container_name: hf-localstack
+    ports:
+      - "4566:4566"      # LocalStack Gateway
+      - "4510-4559:4510-4559"  # External services
+    environment:
+      - SERVICES=s3,kinesis,lambda,sns,sqs,secretsmanager
+      - DEBUG=1
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - localstack_data:/var/lib/localstack
+    networks:
+      - iot-network
+
+  # Local MQTT Router (mimics IoT Core Rules Engine)
+  router:
+    build:
+      context: ./router_local
+      dockerfile: Dockerfile
+    container_name: hf-router
+    depends_on:
+      emqx:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-emqx}
+      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
+      - DATABASE_URL=${DATABASE_URL}
+      - ML_SERVICE_URL=http://ml_service:8000
+    volumes:
+      - ./router_local:/app
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+  # ML Anomaly Detection Service
+  ml_service:
+    build:
+      context: ./ml_service
+      dockerfile: Dockerfile
+    container_name: hf-ml-service
+    ports:
+      - "8000:8000"
+    environment:
+      - MODEL_PATH=${ML_MODEL_PATH:-/app/models/anomaly_model.onnx}
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./ml_service:/app
+    networks:
+      - iot-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Device Simulator
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: hf-simulator
+    depends_on:
+      emqx:
+        condition: service_healthy
+    environment:
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-emqx}
+      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
+      - DEVICE_COUNT=${SIMULATOR_DEVICE_COUNT:-500}
+      - MESSAGE_INTERVAL=${SIMULATOR_MESSAGE_INTERVAL:-60}
+      - TENANTS=${SIMULATOR_TENANTS:-clinic-alpha,hospital-beta}
+    volumes:
+      - ./simulator:/app
+    networks:
+      - iot-network
+    restart: unless-stopped
+
+networks:
+  iot-network:
+    driver: bridge
+
+volumes:
+  timescaledb_data:
+  localstack_data:

@@ -1,0 +1,3 @@
+# Data directory
+# Place training datasets, labeled anomalies, etc. here
+# Files in this directory are .gitignored (except this .gitkeep)
